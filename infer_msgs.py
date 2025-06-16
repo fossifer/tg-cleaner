@@ -38,7 +38,7 @@ else:
 
 model = AutoModelForSequenceClassification.from_pretrained('distilbert-base-multilingual-cased', num_labels=2)
 model = model.to(device)
-model.load_state_dict(torch.load(MSG_MODEL_PATH))
+model.load_state_dict(torch.load(MSG_MODEL_PATH, map_location=device))
 tokenizer = AutoTokenizer.from_pretrained('distilbert-base-multilingual-cased')
 
 # Naive Bayes
