@@ -1,0 +1,40 @@
+<table class="w-full table-auto border-collapse mb-4">
+    <thead>
+      <tr class="bg-gray-200">
+        <th class="p-2 border">User ID</th>
+        <th class="p-2 border">Nickname</th>
+        <th class="p-2 border">Message</th>
+        <th class="p-2 border">Score</th>
+        <th class="p-2 border">Spam?</th>
+        <th class="p-2 border">Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for msg in rows %}
+      <tr>
+        <td class="p-2 border">{{ msg.user_id }}</td>
+        <td class="p-2 border">{{ msg.nickname }}</td>
+        <td class="p-2 border">{{ msg.message_text }}</td>
+        <td class="p-2 border">{{ "{:.4f}".format(msg.model_score or 0.0) }}</td>
+        <td class="p-2 border">
+          <input type="checkbox" {% if msg.is_spam %}checked{% endif %} onchange="updateLabel({{ msg.id }}, this.checked)" />
+        </td>
+        <td class="p-2 border">{{ msg.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <div class="flex justify-between mt-4 items-center">
+    <div>
+        Page {{ current_page }} of {{ total_pages }}
+    </div>
+    <div class="space-x-2">
+        {% if current_page > 1 %}
+            <a href="/?page={{ current_page - 1 }}" class="px-4 py-2 bg-gray-200 rounded">Previous</a>
+        {% endif %}
+        {% if current_page < total_pages %}
+            <a href="/?page={{ current_page + 1 }}" class="px-4 py-2 bg-gray-200 rounded">Next</a>
+        {% endif %}
+    </div>
+  </div>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Spam Control Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+<div class="max-w-7xl mx-auto bg-white shadow-md rounded-xl p-6">
+    <h1 class="text-2xl font-bold mb-4">Spam Control Panel</h1>
+    <!-- Search box -->
+    <form id="search-form" class="mb-4 flex gap-2">
+        <input id="search-input" type="text" name="search" placeholder="Search..." class="w-full p-2 border rounded shadow-sm" />
+        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow">Search</button>
+    </form>
+    <!-- Main table -->
+    <div id="messages-container">
+        {% include "messages_table.html" %}
+    </div>
+    <!-- Export -->
+    <form class="mt-4 flex items-center gap-2" action="/export" method="get">
+        <input type="datetime-local" name="after" class="border px-2 py-1 rounded">
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Export CSV</button>
+    </form>
+</div>
+
+<script>
+    let currentSearch = '';
+    let currentPage = 1;
+  
+    document.getElementById("search-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      currentSearch = document.getElementById("search-input").value;
+      currentPage = 1;
+      await loadPage(currentPage);
+    });
+  
+    async function loadPage(page) {
+      const params = new URLSearchParams({
+        search: currentSearch,
+        page: page
+      });
+      const response = await fetch(`/messages_fragment?${params.toString()}`);
+      const html = await response.text();
+      document.getElementById("messages-container").innerHTML = html;
+      currentPage = page;
+    }
+  
+    async function updateLabel(id, is_spam) {
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('is_spam', is_spam);
+        await fetch('/update_label', {
+            method: 'POST',
+            body: formData
+        });
+    }
+  </script>
+</body>
+</html>

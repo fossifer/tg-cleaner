@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Spam Control Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+<div class="max-w-7xl mx-auto bg-white shadow-md rounded-xl p-6">
+    <h1 class="text-2xl font-bold mb-4">Spam Control Panel</h1>
+    <!-- Search box -->
+    <form method="get" action="/messages" class="mb-4 flex gap-2">
+        <input type="text" name="search" value="{{ search or '' }}" placeholder="Search..." class="w-full p-2 border rounded shadow-sm" />
+        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow">Search</button>
+    </form>
+    <!-- Main table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full table-auto border border-gray-300">
+            <thead class="bg-gray-200">
+                <tr>
+                    <th class="px-4 py-2 text-left">User ID</th>
+                    <th class="px-4 py-2 text-left">Nickname</th>
+                    <th class="px-4 py-2 text-left">Message</th>
+                    <th class="px-4 py-2 text-left">Score</th>
+                    <th class="px-4 py-2 text-left">Spam?</th>
+                    <th class="px-4 py-2 text-left">Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr class="border-t">
+                    <td class="px-4 py-2">{{ row.user_id }}</td>
+                    <td class="px-4 py-2">{{ row.nickname }}</td>
+                    <td class="px-4 py-2 whitespace-pre-line">{{ row.message_text }}</td>
+                    <td class="px-4 py-2">{{ "%.2f"|format(row.model_score) if row.model_score else "N/A" }}</td>
+                    <td class="px-4 py-2">
+                        <input type="checkbox" {% if row.is_spam %}checked{% endif %} onchange="updateLabel({{ row.id }}, this.checked)">
+                    </td>
+                    <td class="px-4 py-2">{{ row.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <!-- Paging -->
+    <div class="flex justify-between mt-4 items-center">
+        <div>
+            Page {{ current_page }} of {{ total_pages }}
+        </div>
+        <div class="space-x-2">
+            {% if current_page > 1 %}
+                <a href="/?page={{ current_page - 1 }}" class="px-4 py-2 bg-gray-200 rounded">Previous</a>
+            {% endif %}
+            {% if current_page < total_pages %}
+                <a href="/?page={{ current_page + 1 }}" class="px-4 py-2 bg-gray-200 rounded">Next</a>
+            {% endif %}
+        </div>
+    </div>
+    <!-- Export -->
+    <form class="mt-4 flex items-center gap-2" action="/export" method="get">
+        <input type="datetime-local" name="after" class="border px-2 py-1 rounded">
+        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Export CSV</button>
+    </form>
+</div>
+
+<script>
+    async function updateLabel(id, is_spam) {
+        const formData = new FormData();
+        formData.append('id', id);
+        formData.append('is_spam', is_spam);
+        await fetch('/update_label', {
+            method: 'POST',
+            body: formData
+        });
+    }
+</script>
+</body>
+</html>
