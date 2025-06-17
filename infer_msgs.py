@@ -380,77 +380,70 @@ async def handle_new_message(event):
         # Update user activity
         await update_user_activity(user_id, nickname)
         
-        # Check if user is active - if yes, skip spam detection
-        if await is_user_active(user_id):
-            logging.debug(f"User {user_id} is active, skipping spam check")
-            return
+        # Initialize model score and spam status
+        model_score = 0.0
+        is_spam = False
         
-        # Get message text - handle regular text and media captions
-        message_text = message.message
-        media_type = None
-        
-        # Add quote text for detection if exists
-        if hasattr(message, 'reply_to') and message.reply_to and hasattr(message.reply_to, 'quote_text') and message.reply_to.quote_text:
-            quote_text = message.reply_to.quote_text
-            message_text = f"{message_text}\n[QUOTE] {quote_text}"
-            logging.debug(f"Message includes a quote: {quote_text[:100]}...")
-        
-        # Check for media content
-        if message.media:
-            media_type = str(type(message.media).__name__)
+        # Check if user is active - if not, run spam detection
+        if not await is_user_active(user_id):
+            # Get message text - handle regular text and media captions
+            message_text = message.message
+            media_type = None
             
-            # Check for photos/images
-            if message.photo:
-                file_path = await message.download_media(file=bytes)
-                if file_path:
-                    # Classify image using NSFW model
-                    result = await classify_image(file_path, nsfw_model, feature_extractor)
-                    
-                    if "error" in result:
-                        logging.error(f"Error processing image: {result['error']}")
-                    else:
-                        logging.info(f"NSFW detection result: {result['nsfw_probability']:.4f} ({'NSFW' if result['is_nsfw'] else 'Normal'})")
+            # Add quote text for detection if exists
+            if hasattr(message, 'reply_to') and message.reply_to and hasattr(message.reply_to, 'quote_text') and message.reply_to.quote_text:
+                quote_text = message.reply_to.quote_text
+                message_text = f"{message_text}\n[QUOTE] {quote_text}"
+                logging.debug(f"Message includes a quote: {quote_text[:100]}...")
+            
+            # Check for media content
+            if message.media:
+                media_type = str(type(message.media).__name__)
+                
+                # Check for photos/images
+                if message.photo:
+                    file_path = await message.download_media(file=bytes)
+                    if file_path:
+                        # Classify image using NSFW model
+                        result = await classify_image(file_path, nsfw_model, feature_extractor)
                         
-                        if result['is_nsfw']:
-                            # # Save the file for model training
-                            # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                            # save_dir = "nsfw_detected"
-                            # os.makedirs(save_dir, exist_ok=True)
-                            # with open(f"{save_dir}/nsfw_{timestamp}_{user_id}.jpg", "wb") as f:
-                            #     f.write(file_path)
+                        if "error" in result:
+                            logging.error(f"Error processing image: {result['error']}")
+                        else:
+                            logging.info(f"NSFW detection result: {result['nsfw_probability']:.4f} ({'NSFW' if result['is_nsfw'] else 'Normal'})")
                             
-                            # Handle spam message (delete and ban)
-                            await handle_spam_message(event, message, result['nsfw_probability'])
-                            return  # Skip text analysis if image is already detected as spam
+                            if result['is_nsfw']:
+                                # Handle spam message (delete and ban)
+                                await handle_spam_message(event, message, result['nsfw_probability'])
+                                return  # Skip text analysis if image is already detected as spam
 
-        if not message_text:  # If no caption, skip the text check
-            return
-            
-        # Get model score
-        model_score = await get_model_score(nickname, message_text)
-        # Naive bayes score
-        nb_score = classifier.predict_proba([nickname + '[SEP]' + message_text])[0]
+            if message_text:  # Only run text analysis if there's text content
+                # Get model score
+                model_score = await get_model_score(nickname, message_text)
+                # Naive bayes score
+                nb_score = classifier.predict_proba([nickname + '[SEP]' + message_text])[0]
+                
+                # Log the score
+                logging.info(f"Message from {nickname} ({user_id}) scored {model_score:.4f}; nb score {nb_score:.4f}")
+                
+                # Determine if message is spam
+                if len(message_text) < 10:
+                    is_spam = model_score >= MSG_SPAM_THRESHOLD and nb_score >= MSG_SPAM_THRESHOLD
+                else:
+                    is_spam = (model_score >= MSG_SPAM_THRESHOLD and nb_score >= 0.06) or nb_score >= 0.94
+                
+                # Handle spam
+                if is_spam:
+                    logging.warning(f"⚠️ Detected spam message from {nickname} (score: {model_score:.4f}): {message_text[:100]}...")
+                    await handle_spam_message(event, message, max(model_score, nb_score))
         
-        # Log the score
-        logging.info(f"Message from {nickname} ({user_id}) scored {model_score:.4f}; nb score {nb_score:.4f}")
-        
-        # Insert into database; require both model to reduce FP
-        if len(message_text) < 10:
-            is_spam = model_score >= MSG_SPAM_THRESHOLD and nb_score >= MSG_SPAM_THRESHOLD
-        else:
-            is_spam = (model_score >= MSG_SPAM_THRESHOLD and nb_score >= 0.06) or nb_score >= 0.94
+        # Insert message data into database
         await insert_message_data(
             message.id, chat_id, user_id, nickname, 
-            message_text, str(model_score), is_spam, media_type
+            message_text if 'message_text' in locals() else message.message,
+            str(model_score), is_spam, media_type if 'media_type' in locals() else None
         )
         
-        # Handle spam
-        if is_spam:
-            logging.warning(f"⚠️ Detected spam message from {nickname} (score: {model_score:.4f}): {message_text[:100]}...")
-            
-            # For now, just print warning - uncomment to enable actual spam handling
-            await handle_spam_message(event, message, max(model_score, nb_score))
-            
     except Exception as e:
         logging.error(f"Error processing message: {e}")
 
