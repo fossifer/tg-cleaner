@@ -339,14 +339,14 @@ async def handle_new_album(event):
                 logging.info(f"NSFW检测结果: {result['nsfw_probability']:.4f} ({'NSFW' if result['is_nsfw'] else '正常'})")
                 
                 if result['is_nsfw']:
-                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    logging.warning(f"检测到NSFW内容: 群组={chat_title}, 发送者={sender_name}, 概率={result['nsfw_probability']:.4f}")
+                    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    # logging.warning(f"检测到NSFW内容: 群组={chat_title}, 发送者={sender_name}, 概率={result['nsfw_probability']:.4f}")
                     
-                    # Save the file to local for model training
-                    save_dir = "nsfw_detected"
-                    os.makedirs(save_dir, exist_ok=True)
-                    with open(f"{save_dir}/nsfw_{timestamp}_{sender_id}.jpg", "wb") as f:
-                        f.write(file)
+                    # # Save the file to local for model training
+                    # save_dir = "nsfw_detected"
+                    # os.makedirs(save_dir, exist_ok=True)
+                    # with open(f"{save_dir}/nsfw_{timestamp}_{sender_id}.jpg", "wb") as f:
+                    #     f.write(file)
                     
                     await handle_spam_message(event, event.messages[0], result['nsfw_probability'])
 
@@ -412,12 +412,12 @@ async def handle_new_message(event):
                         logging.info(f"NSFW detection result: {result['nsfw_probability']:.4f} ({'NSFW' if result['is_nsfw'] else 'Normal'})")
                         
                         if result['is_nsfw']:
-                            # Save the file for model training
-                            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                            save_dir = "nsfw_detected"
-                            os.makedirs(save_dir, exist_ok=True)
-                            with open(f"{save_dir}/nsfw_{timestamp}_{user_id}.jpg", "wb") as f:
-                                f.write(file_path)
+                            # # Save the file for model training
+                            # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                            # save_dir = "nsfw_detected"
+                            # os.makedirs(save_dir, exist_ok=True)
+                            # with open(f"{save_dir}/nsfw_{timestamp}_{user_id}.jpg", "wb") as f:
+                            #     f.write(file_path)
                             
                             # Handle spam message (delete and ban)
                             await handle_spam_message(event, message, result['nsfw_probability'])
