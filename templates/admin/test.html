@@ -1,0 +1,157 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Model Testing{% endblock %}
+
+{% block content %}
+<div class="bg-white shadow rounded-lg">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900">Model Testing</h3>
+        
+        <!-- Test Input Form -->
+        <div class="mt-6">
+            <form hx-post="/admin/test/predict" hx-target="#results" class="space-y-6">
+                <div>
+                    <label for="nickname" class="block text-sm font-medium text-gray-700">Nickname (Optional)</label>
+                    <div class="mt-1">
+                        <input type="text" name="nickname" id="nickname"
+                               class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                               placeholder="Enter a nickname to test">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="message_text" class="block text-sm font-medium text-gray-700">Message Text (Optional)</label>
+                    <div class="mt-1">
+                        <textarea name="message_text" id="message_text" rows="4"
+                                  class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                  placeholder="Enter a message to test"></textarea>
+                    </div>
+                </div>
+
+                <div>
+                    <button type="submit"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Test Models
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="mt-8">
+            <!-- Results will be loaded here via HTMX -->
+        </div>
+
+        <!-- Results Template (Hidden) -->
+        <template id="results-template">
+            <div class="mt-8">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Test Results</h3>
+                <div class="mt-4 flex flex-col">
+                    <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                        <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+                            <div class="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Model
+                                            </th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Type
+                                            </th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Prediction
+                                            </th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Confidence
+                                            </th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Details
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        {% for result in results %}
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                {{ result.model_name }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {{ result.model_type }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                                    {% if result.prediction.is_spam %}
+                                                        bg-red-100 text-red-800
+                                                    {% else %}
+                                                        bg-green-100 text-green-800
+                                                    {% endif %}
+                                                ">
+                                                    {{ "Spam" if result.prediction.is_spam else "Not Spam" }}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {{ "%.2f"|format(result.prediction.confidence * 100) }}%
+                                            </td>
+                                            <td class="px-6 py-4 text-sm text-gray-500">
+                                                <pre class="whitespace-pre-wrap">{{ result.prediction.details | tojson(indent=2) }}</pre>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful) {
+            const results = evt.detail.xhr.response;
+            const template = document.getElementById('results-template');
+            const resultsDiv = document.getElementById('results');
+            
+            // Clear previous results
+            resultsDiv.innerHTML = '';
+            
+            // Clone and populate the template
+            const clone = template.content.cloneNode(true);
+            const tbody = clone.querySelector('tbody');
+            
+            results.results.forEach(result => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${result.model_name}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${result.model_type}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                            ${result.prediction.is_spam ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                            ${result.prediction.is_spam ? 'Spam' : 'Not Spam'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${(result.prediction.confidence * 100).toFixed(2)}%
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        <pre class="whitespace-pre-wrap">${JSON.stringify(result.prediction.details, null, 2)}</pre>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            resultsDiv.appendChild(clone);
+        }
+    });
+</script>
+{% endblock %} 

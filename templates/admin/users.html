@@ -1,0 +1,111 @@
+{% extends "admin/base.html" %}
+
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+<div class="bg-white shadow rounded-lg">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900">User Management</h3>
+        
+        <!-- User List -->
+        <div class="mt-6">
+            <div class="flex flex-col">
+                <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                    <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+                        <div class="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Telegram ID
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Username
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Role
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Created At
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Last Login
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% for user in users %}
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                            {{ user.telegram_id }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {{ user.username }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                                {% if user.role == 'super_admin' %}
+                                                    bg-purple-100 text-purple-800
+                                                {% elif user.role == 'admin' %}
+                                                    bg-blue-100 text-blue-800
+                                                {% else %}
+                                                    bg-gray-100 text-gray-800
+                                                {% endif %}
+                                            ">
+                                                {{ user.role }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {{ user.created_at }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {{ user.last_login or 'Never' }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <form hx-post="/admin/users/update-role" class="inline">
+                                                <input type="hidden" name="telegram_id" value="{{ user.telegram_id }}">
+                                                <select name="new_role" onchange="this.form.submit()"
+                                                        class="text-sm border-gray-300 rounded-md
+                                                            {% if user.role == 'super_admin' %}
+                                                                text-purple-700 bg-purple-50
+                                                            {% elif user.role == 'admin' %}
+                                                                text-blue-700 bg-blue-50
+                                                            {% else %}
+                                                                text-gray-700 bg-gray-50
+                                                            {% endif %}
+                                                        ">
+                                                    <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                                                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                                    <option value="super_admin" {% if user.role == 'super_admin' %}selected{% endif %}>Super Admin</option>
+                                                </select>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful) {
+            window.dispatchEvent(new CustomEvent('flash', {
+                detail: { message: 'User role updated successfully!' }
+            }));
+            // Refresh the page after a short delay
+            setTimeout(() => window.location.reload(), 1000);
+        }
+    });
+</script>
+{% endblock %} 

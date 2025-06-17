@@ -1,8 +1,13 @@
 # Telegram API credentials
-BOT_TOKEN = '1234567890:Abcdefghijklmnopqrstuvwxyz'  # Replace with your bot token
+WEB_BOT_TOKEN = '1234567890:Abcdefghijklmnopqrstuvwxyz'  # For OAuth login
+WEB_BOT_USERNAME = 'ExampleBot'
+BOT_TOKEN = '1234567890:Abcdefghijklmnopqrstuvwxyz'  # Replace with your bot token, can be the same as WEB_BOT_TOKEN
 API_URL = 'https://api.telegram.org/bot' + BOT_TOKEN + '/'
 API_ID = 123456  # Replace with your API ID
 API_HASH = 'your_api_hash_here'  # Replace with your API hash
+
+# Admin panel credentials
+SECRET_KEY = 'some_key'
 
 # Common settings
 SEED = 42  # Random seed for reproducibility
