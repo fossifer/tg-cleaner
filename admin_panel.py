@@ -15,6 +15,7 @@ from pathlib import Path
 # from config import SECRET_KEY, WEB_BOT_USERNAME
 SECRET_KEY = os.getenv('SECRET_KEY')
 WEB_BOT_USERNAME = os.getenv('WEB_BOT_USERNAME')
+WEB_BOT_TOKEN = os.getenv('WEB_BOT_TOKEN')
 from auth import TelegramAuth
 from admin_db import (
     init_db, add_model, get_active_model, switch_active_model,
@@ -51,7 +52,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # Initialize auth with bot token from config
-from config import WEB_BOT_TOKEN
+# from config import WEB_BOT_TOKEN
 auth = TelegramAuth(WEB_BOT_TOKEN)
 
 # Initialize database on startup
