@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, File, UploadFile, Depends, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -58,6 +58,11 @@ auth = TelegramAuth(WEB_BOT_TOKEN)
 @app.on_event("startup")
 async def startup_event():
     await init_db(ADMIN_DB_PATH)
+
+# Root path - serve the landing page
+@app.get("/", response_class=FileResponse)
+async def root():
+    return FileResponse("static/index.html", media_type="text/html")
 
 # Admin panel routes
 @app.get("/admin", response_class=HTMLResponse)
