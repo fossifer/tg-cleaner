@@ -166,6 +166,7 @@ async def get_system_status(db_path: str = ADMIN_DB_PATH) -> Dict[str, Any]:
             SELECT component, status, details, last_updated
             FROM system_status
             ORDER BY last_updated DESC
+            LIMIT 1
         """)
         rows = await cursor.fetchall()
         return {row['component']: {

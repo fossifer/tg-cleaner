@@ -7,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import aiosqlite
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 import asyncio
 import subprocess
@@ -29,6 +29,10 @@ DB_DIR = os.getenv('DB_DIR', os.getcwd())
 MESSAGE_DB_PATH = os.path.join(DB_DIR, "message_data.db")
 USER_DB_PATH = os.path.join(DB_DIR, "user_data.db")
 ADMIN_DB_PATH = os.path.join(DB_DIR, "admin_data.db")
+
+def get_utc_now() -> str:
+    """Get current UTC time in ISO format with timezone."""
+    return datetime.now(timezone.utc).isoformat()
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -99,20 +103,18 @@ async def system_status(request: Request):
     user = await auth.get_current_user(request)
     status = await get_system_status(ADMIN_DB_PATH)
     
-    # Get database stats
-    async with aiosqlite.connect(MESSAGE_DB_PATH) as db:
-        cursor = await db.execute("SELECT COUNT(*) FROM message_data")
-        total_messages = (await cursor.fetchone())[0]
-        
-        cursor = await db.execute("SELECT COUNT(*) FROM message_data WHERE is_spam IN (1, X'01')")
-        spam_messages = (await cursor.fetchone())[0]
+    # Get database stats from the status
+    db_status = status.get('database', {})
+    details = db_status.get('details', {})
     
     return templates.TemplateResponse("admin/status.html", {
         "request": request,
         "user": user,
         "status": status,
-        "total_messages": total_messages,
-        "spam_messages": spam_messages
+        "total_messages": details.get('total_messages', 0),
+        "spam_messages": details.get('spam_messages', 0),
+        "total_users": details.get('total_users', 0),
+        "spam_users": details.get('spam_users', 0)
     })
 
 @app.get("/admin/models", response_class=HTMLResponse)
@@ -310,39 +312,6 @@ async def logout(request: Request):
 async def update_system_status_task():
     while True:
         try:
-            # Update Telegram bot status
-            try:
-                # Check if the bot process is running
-                result = subprocess.run(
-                    ["ps", "aux", "|", "grep", "run.py"],
-                    capture_output=True,
-                    text=True
-                )
-                bot_status = "running" if "run.py" in result.stdout else "stopped"
-            except Exception:
-                bot_status = "error"
-            
-            await update_system_status(
-                "telegram_bot",
-                bot_status,
-                {"last_check": datetime.now().isoformat()},
-                ADMIN_DB_PATH
-            )
-            
-            # Update model status
-            active_model = await get_active_model(ADMIN_DB_PATH)
-            if active_model:
-                await update_system_status(
-                    "active_model",
-                    "active",
-                    {
-                        "name": active_model["name"],
-                        "type": active_model["type"],
-                        "last_updated": active_model["upload_time"]
-                    },
-                    ADMIN_DB_PATH
-                )
-            
             # Update database stats
             async with aiosqlite.connect(MESSAGE_DB_PATH) as db:
                 cursor = await db.execute("SELECT COUNT(*) FROM message_data")
@@ -350,6 +319,24 @@ async def update_system_status_task():
                 
                 cursor = await db.execute("SELECT COUNT(*) FROM message_data WHERE is_spam IN (1, X'01')")
                 spam_messages = (await cursor.fetchone())[0]
+
+                # Get latest message time
+                cursor = await db.execute("SELECT created_at FROM message_data ORDER BY created_at DESC LIMIT 1")
+                last_message = await cursor.fetchone()
+                last_message_time = last_message[0] if last_message else None
+
+            # Get user stats
+            async with aiosqlite.connect(USER_DB_PATH) as db:
+                cursor = await db.execute("SELECT COUNT(*) FROM user_data")
+                total_users = (await cursor.fetchone())[0]
+                
+                cursor = await db.execute("SELECT COUNT(*) FROM user_data WHERE is_spam IN (1, X'01')")
+                spam_users = (await cursor.fetchone())[0]
+
+                # Get latest user time
+                cursor = await db.execute("SELECT created_at FROM user_data ORDER BY created_at DESC LIMIT 1")
+                last_user = await cursor.fetchone()
+                last_user_time = last_user[0] if last_user else None
             
             await update_system_status(
                 "database",
@@ -357,7 +344,11 @@ async def update_system_status_task():
                 {
                     "total_messages": total_messages,
                     "spam_messages": spam_messages,
-                    "last_updated": datetime.now().isoformat()
+                    "total_users": total_users,
+                    "spam_users": spam_users,
+                    "last_message_time": last_message_time,
+                    "last_user_time": last_user_time,
+                    "last_updated": get_utc_now()
                 },
                 ADMIN_DB_PATH
             )
