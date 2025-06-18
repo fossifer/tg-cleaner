@@ -173,4 +173,12 @@ async def get_system_status(db_path: str = ADMIN_DB_PATH) -> Dict[str, Any]:
             'status': row['status'],
             'details': json.loads(row['details']) if row['details'] else None,
             'last_updated': row['last_updated']
-        } for row in rows} 
+        } for row in rows}
+
+async def update_last_login(telegram_id: int, db_path: str = ADMIN_DB_PATH):
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE telegram_id = ?",
+            (telegram_id,)
+        )
+        await db.commit()

@@ -19,7 +19,7 @@ from auth import TelegramAuth
 from admin_db import (
     init_db, add_model, get_active_model, switch_active_model,
     get_model_switch_history, update_system_status, get_system_status,
-    get_user, update_user_role, add_user
+    get_user, update_user_role, add_user, update_last_login
 )
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.authentication import AuthenticationBackend
@@ -325,6 +325,7 @@ async def login(request: Request):
             username=auth_data.get('username'),
             role='user'  # Default role
         )
+    await update_last_login(auth_data['id'], db_path=ADMIN_DB_PATH)
     
     # Get redirect URL from session or default to admin panel
     redirect_url = request.session.pop('redirect_url', '/admin')
