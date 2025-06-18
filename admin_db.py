@@ -4,10 +4,12 @@ from typing import Optional, List, Dict, Any
 import json
 import os
 
-ADMIN_DB_PATH = "admin_data.db"
+# Get database directory from environment variable, default to current directory
+DB_DIR = os.getenv('DB_DIR', os.getcwd())
+ADMIN_DB_PATH = os.path.join(DB_DIR, "admin_data.db")
 
-async def init_db():
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def init_db(db_path: str = ADMIN_DB_PATH):
+    async with aiosqlite.connect(db_path) as db:
         # Users table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -57,8 +59,8 @@ async def init_db():
         
         await db.commit()
 
-async def add_user(telegram_id: int, username: str, role: str = 'user') -> bool:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def add_user(telegram_id: int, username: str, role: str = 'user', db_path: str = ADMIN_DB_PATH) -> bool:
+    async with aiosqlite.connect(db_path) as db:
         try:
             await db.execute(
                 "INSERT INTO users (telegram_id, username, role) VALUES (?, ?, ?)",
@@ -69,8 +71,8 @@ async def add_user(telegram_id: int, username: str, role: str = 'user') -> bool:
         except aiosqlite.IntegrityError:
             return False
 
-async def get_user(telegram_id: int) -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def get_user(telegram_id: int, db_path: str = ADMIN_DB_PATH) -> Optional[Dict[str, Any]]:
+    async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT * FROM users WHERE telegram_id = ?",
@@ -79,8 +81,8 @@ async def get_user(telegram_id: int) -> Optional[Dict[str, Any]]:
         row = await cursor.fetchone()
         return dict(row) if row else None
 
-async def update_user_role(telegram_id: int, new_role: str) -> bool:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def update_user_role(telegram_id: int, new_role: str, db_path: str = ADMIN_DB_PATH) -> bool:
+    async with aiosqlite.connect(db_path) as db:
         try:
             await db.execute(
                 "UPDATE users SET role = ? WHERE telegram_id = ?",
@@ -91,8 +93,8 @@ async def update_user_role(telegram_id: int, new_role: str) -> bool:
         except aiosqlite.Error:
             return False
 
-async def add_model(name: str, model_type: str, file_path: str, metadata: Optional[Dict] = None) -> int:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def add_model(name: str, model_type: str, file_path: str, metadata: Optional[Dict] = None, db_path: str = ADMIN_DB_PATH) -> int:
+    async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute(
             "INSERT INTO models (name, type, file_path, metadata) VALUES (?, ?, ?, ?)",
             (name, model_type, file_path, json.dumps(metadata) if metadata else None)
@@ -100,8 +102,8 @@ async def add_model(name: str, model_type: str, file_path: str, metadata: Option
         await db.commit()
         return cursor.lastrowid
 
-async def get_active_model() -> Optional[Dict[str, Any]]:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def get_active_model(db_path: str = ADMIN_DB_PATH) -> Optional[Dict[str, Any]]:
+    async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT * FROM models WHERE is_active = 1"
@@ -109,8 +111,8 @@ async def get_active_model() -> Optional[Dict[str, Any]]:
         row = await cursor.fetchone()
         return dict(row) if row else None
 
-async def switch_active_model(model_id: int, switched_by: int) -> bool:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def switch_active_model(model_id: int, switched_by: int, db_path: str = ADMIN_DB_PATH) -> bool:
+    async with aiosqlite.connect(db_path) as db:
         try:
             await db.execute("BEGIN TRANSACTION")
             
@@ -135,8 +137,8 @@ async def switch_active_model(model_id: int, switched_by: int) -> bool:
             await db.rollback()
             return False
 
-async def get_model_switch_history(limit: int = 10) -> List[Dict[str, Any]]:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def get_model_switch_history(limit: int = 10, db_path: str = ADMIN_DB_PATH) -> List[Dict[str, Any]]:
+    async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("""
             SELECT ms.*, m.name as model_name, u.username as switched_by_username
@@ -149,16 +151,16 @@ async def get_model_switch_history(limit: int = 10) -> List[Dict[str, Any]]:
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-async def update_system_status(component: str, status: str, details: Optional[Dict] = None):
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def update_system_status(component: str, status: str, details: Optional[Dict] = None, db_path: str = ADMIN_DB_PATH):
+    async with aiosqlite.connect(db_path) as db:
         await db.execute("""
             INSERT INTO system_status (component, status, details)
             VALUES (?, ?, ?)
         """, (component, status, json.dumps(details) if details else None))
         await db.commit()
 
-async def get_system_status() -> Dict[str, Any]:
-    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
+async def get_system_status(db_path: str = ADMIN_DB_PATH) -> Dict[str, Any]:
+    async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("""
             SELECT component, status, details, last_updated

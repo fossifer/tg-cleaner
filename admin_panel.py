@@ -22,6 +22,14 @@ from admin_db import (
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.authentication import AuthenticationBackend
 
+# Get database directory from environment variable, default to current directory
+DB_DIR = os.getenv('DB_DIR', os.getcwd())
+
+# Database file paths
+MESSAGE_DB_PATH = os.path.join(DB_DIR, "message_data.db")
+USER_DB_PATH = os.path.join(DB_DIR, "user_data.db")
+ADMIN_DB_PATH = os.path.join(DB_DIR, "admin_data.db")
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -43,7 +51,7 @@ auth = TelegramAuth(WEB_BOT_TOKEN)
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    await init_db()
+    await init_db(ADMIN_DB_PATH)
 
 # Admin panel routes
 @app.get("/admin", response_class=HTMLResponse)
@@ -58,7 +66,7 @@ async def admin_panel(request: Request):
         )
     
     # Get database stats
-    async with aiosqlite.connect("message_data.db") as db:
+    async with aiosqlite.connect(MESSAGE_DB_PATH) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM message_data")
         total_messages = (await cursor.fetchone())[0]
         
@@ -66,7 +74,7 @@ async def admin_panel(request: Request):
         spam_messages = (await cursor.fetchone())[0]
     
     # Get user stats
-    async with aiosqlite.connect("user_data.db") as db:
+    async with aiosqlite.connect(USER_DB_PATH) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM user_data")
         total_users = (await cursor.fetchone())[0]
         
@@ -74,7 +82,7 @@ async def admin_panel(request: Request):
         spam_users = (await cursor.fetchone())[0]
     
     # Get active model
-    active_model = await get_active_model()
+    active_model = await get_active_model(ADMIN_DB_PATH)
     
     return templates.TemplateResponse("admin/index.html", {
         "request": request,
@@ -89,10 +97,10 @@ async def admin_panel(request: Request):
 @app.get("/admin/status", response_class=HTMLResponse)
 async def system_status(request: Request):
     user = await auth.get_current_user(request)
-    status = await get_system_status()
+    status = await get_system_status(ADMIN_DB_PATH)
     
     # Get database stats
-    async with aiosqlite.connect("message_data.db") as db:
+    async with aiosqlite.connect(MESSAGE_DB_PATH) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM message_data")
         total_messages = (await cursor.fetchone())[0]
         
@@ -111,12 +119,12 @@ async def system_status(request: Request):
 async def model_management(request: Request):
     user = await auth.require_admin(request)
     
-    async with aiosqlite.connect("admin_data.db") as db:
+    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("SELECT * FROM models ORDER BY upload_time DESC")
         models = [dict(row) for row in await cursor.fetchall()]
         
-        active_model = await get_active_model()
+        active_model = await get_active_model(ADMIN_DB_PATH)
     
     return templates.TemplateResponse("admin/models.html", {
         "request": request,
@@ -136,10 +144,11 @@ async def upload_model(
     user = await auth.require_admin(request)
     
     # Create models directory if it doesn't exist
-    os.makedirs("models", exist_ok=True)
+    models_dir = os.path.join(DB_DIR, "models")
+    os.makedirs(models_dir, exist_ok=True)
     
     # Save the file
-    file_path = f"models/{file.filename}"
+    file_path = os.path.join(models_dir, file.filename)
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
@@ -152,7 +161,8 @@ async def upload_model(
         name=model_name,
         model_type=model_type,
         file_path=file_path,
-        metadata=metadata_dict
+        metadata=metadata_dict,
+        db_path=ADMIN_DB_PATH
     )
     
     return {"success": True, "model_id": model_id}
@@ -161,7 +171,7 @@ async def upload_model(
 async def switch_model(request: Request, model_id: int = Form(...)):
     user = await auth.require_admin(request)
     
-    success = await switch_active_model(model_id, user['telegram_id'])
+    success = await switch_active_model(model_id, user['telegram_id'], ADMIN_DB_PATH)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to switch model")
     
@@ -171,7 +181,7 @@ async def switch_model(request: Request, model_id: int = Form(...)):
 async def model_test(request: Request):
     user = await auth.require_admin(request)
     
-    async with aiosqlite.connect("admin_data.db") as db:
+    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("SELECT * FROM models WHERE is_active = 1")
         active_models = [dict(row) for row in await cursor.fetchall()]
@@ -191,7 +201,7 @@ async def test_prediction(
     user = await auth.require_admin(request)
     
     # Get active models
-    active_models = await get_active_model()
+    active_models = await get_active_model(ADMIN_DB_PATH)
     if not active_models:
         raise HTTPException(status_code=400, detail="No active models found")
     
@@ -217,7 +227,7 @@ async def test_prediction(
 async def user_management(request: Request):
     user = await auth.require_super_admin(request)
     
-    async with aiosqlite.connect("admin_data.db") as db:
+    async with aiosqlite.connect(ADMIN_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("SELECT * FROM users ORDER BY created_at DESC")
         users = [dict(row) for row in await cursor.fetchall()]
@@ -236,7 +246,7 @@ async def update_user_role_endpoint(
 ):
     user = await auth.require_super_admin(request)
     
-    success = await update_user_role(telegram_id, new_role)
+    success = await update_user_role(telegram_id, new_role, ADMIN_DB_PATH)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update user role")
     
@@ -315,11 +325,12 @@ async def update_system_status_task():
             await update_system_status(
                 "telegram_bot",
                 bot_status,
-                {"last_check": datetime.now().isoformat()}
+                {"last_check": datetime.now().isoformat()},
+                ADMIN_DB_PATH
             )
             
             # Update model status
-            active_model = await get_active_model()
+            active_model = await get_active_model(ADMIN_DB_PATH)
             if active_model:
                 await update_system_status(
                     "active_model",
@@ -328,11 +339,12 @@ async def update_system_status_task():
                         "name": active_model["name"],
                         "type": active_model["type"],
                         "last_updated": active_model["upload_time"]
-                    }
+                    },
+                    ADMIN_DB_PATH
                 )
             
             # Update database stats
-            async with aiosqlite.connect("message_data.db") as db:
+            async with aiosqlite.connect(MESSAGE_DB_PATH) as db:
                 cursor = await db.execute("SELECT COUNT(*) FROM message_data")
                 total_messages = (await cursor.fetchone())[0]
                 
@@ -346,7 +358,8 @@ async def update_system_status_task():
                     "total_messages": total_messages,
                     "spam_messages": spam_messages,
                     "last_updated": datetime.now().isoformat()
-                }
+                },
+                ADMIN_DB_PATH
             )
             
         except Exception as e:
