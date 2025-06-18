@@ -106,7 +106,32 @@ async def system_status(request: Request):
     # Get database stats from the status
     db_status = status.get('database', {})
     details = db_status.get('details', {})
-    
+
+    # Log paths
+    msg_log_path = os.getenv('MSG_LOG_PATH')
+    user_log_path = os.getenv('USER_LOG_PATH')
+    infer_msgs_log = None
+    infer_profile_log = None
+    log_error = None
+    can_view_logs = user and user.get('role') in ['admin', 'super_admin']
+    if can_view_logs:
+        def tail_log(path):
+            if not path or not os.path.exists(path):
+                return None
+            try:
+                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                    return ''.join(lines[-500:])
+            except Exception as e:
+                return f"[Error reading log: {e}]"
+        infer_msgs_log = tail_log(msg_log_path)
+        infer_profile_log = tail_log(user_log_path)
+    else:
+        log_error = "Only admins can view log content."
+
+    # Get recent model switch history
+    model_switches = await get_model_switch_history(10, ADMIN_DB_PATH)
+
     return templates.TemplateResponse("admin/status.html", {
         "request": request,
         "user": user,
@@ -114,7 +139,11 @@ async def system_status(request: Request):
         "total_messages": details.get('total_messages', 0),
         "spam_messages": details.get('spam_messages', 0),
         "total_users": details.get('total_users', 0),
-        "spam_users": details.get('spam_users', 0)
+        "spam_users": details.get('spam_users', 0),
+        "infer_msgs_log": infer_msgs_log,
+        "infer_profile_log": infer_profile_log,
+        "log_error": log_error,
+        "model_switches": model_switches
     })
 
 @app.get("/admin/models", response_class=HTMLResponse)
