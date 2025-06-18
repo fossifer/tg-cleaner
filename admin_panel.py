@@ -361,7 +361,8 @@ async def update_system_status_task():
                 # Get latest message time
                 cursor = await db.execute("SELECT created_at FROM message_data ORDER BY created_at DESC LIMIT 1")
                 last_message = await cursor.fetchone()
-                last_message_time = last_message[0] if last_message else None
+                # To ISO format (UTC)
+                last_message_time = last_message[0] + 'Z' if last_message else None
 
             # Get user stats
             async with aiosqlite.connect(USER_DB_PATH) as db:
@@ -374,7 +375,7 @@ async def update_system_status_task():
                 # Get latest user time
                 cursor = await db.execute("SELECT created_at FROM user_data ORDER BY created_at DESC LIMIT 1")
                 last_user = await cursor.fetchone()
-                last_user_time = last_user[0] if last_user else None
+                last_user_time = last_user[0] + 'Z' if last_user else None
             
             await update_system_status(
                 "database",
