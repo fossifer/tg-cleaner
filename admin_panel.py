@@ -12,7 +12,9 @@ from typing import Optional, List, Dict, Any
 import asyncio
 import subprocess
 from pathlib import Path
-from config import SECRET_KEY, WEB_BOT_USERNAME
+# from config import SECRET_KEY, WEB_BOT_USERNAME
+SECRET_KEY = os.getenv('SECRET_KEY')
+WEB_BOT_USERNAME = os.getenv('WEB_BOT_USERNAME')
 from auth import TelegramAuth
 from admin_db import (
     init_db, add_model, get_active_model, switch_active_model,
