@@ -6,6 +6,19 @@ import time
 import json
 from typing import Optional, Dict, Any
 from admin_db import get_user, add_user
+import ipaddress
+
+def is_local_request(request: Request) -> bool:
+    """Check if the request is from localhost or 127.0.0.1."""
+    client_host = getattr(request.client, 'host', None)
+    if not client_host:
+        return False
+    try:
+        ip = ipaddress.ip_address(client_host)
+        return ip.is_loopback
+    except ValueError:
+        # If not an IP, check for 'localhost' string
+        return client_host == 'localhost'
 
 class TelegramAuth:
     def __init__(self, bot_token: str):
@@ -39,7 +52,14 @@ class TelegramAuth:
         return hash == auth_data.get('hash')
 
     async def get_current_user(self, request: Request) -> Optional[Dict[str, Any]]:
-        """Get the current authenticated user from the session."""
+        # Bypass authentication for local development (127.0.0.1 / localhost)
+        if is_local_request(request):
+            # Return a fake super_admin user when running locally
+            return {
+                "telegram_id": 0,
+                "username": "dev_local",
+                "role": "super_admin"
+            }
         auth_data = request.session.get('auth_data')
         if not auth_data:
             return None
@@ -62,7 +82,14 @@ class TelegramAuth:
         return user
 
     async def require_role(self, request: Request, required_role: str) -> Dict[str, Any]:
-        """Require a specific role for access."""
+        # Bypass authentication for local development (127.0.0.1 / localhost)
+        if is_local_request(request):
+            # Return a fake super_admin user when running locally
+            return {
+                "telegram_id": 0,
+                "username": "dev_local",
+                "role": "super_admin"
+            }
         user = await self.get_current_user(request)
         if not user:
             # Store the original URL to redirect back after login
@@ -79,7 +106,14 @@ class TelegramAuth:
         return user
 
     async def require_admin(self, request: Request) -> Dict[str, Any]:
-        """Require admin or super_admin role for access."""
+        # Bypass authentication for local development (127.0.0.1 / localhost)
+        if is_local_request(request):
+            # Return a fake super_admin user when running locally
+            return {
+                "telegram_id": 0,
+                "username": "dev_local",
+                "role": "super_admin"
+            }
         user = await self.get_current_user(request)
         if not user:
             # Store the original URL to redirect back after login
@@ -96,7 +130,14 @@ class TelegramAuth:
         return user
 
     async def require_super_admin(self, request: Request) -> Dict[str, Any]:
-        """Require super_admin role for access."""
+        # Bypass authentication for local development (127.0.0.1 / localhost)
+        if is_local_request(request):
+            # Return a fake super_admin user when running locally
+            return {
+                "telegram_id": 0,
+                "username": "dev_local",
+                "role": "super_admin"
+            }
         user = await self.get_current_user(request)
         if not user:
             # Store the original URL to redirect back after login
